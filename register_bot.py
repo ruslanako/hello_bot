@@ -14,7 +14,8 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS users (
                   username TEXT,
                   phone TEXT,
                   location TEXT,
-                  birthday TEXT)''')
+                  birthday TEXT,
+                  language TEXT)''')
 conn.commit()
 
 # Хранение данных пользователей перед сохранением в БД
@@ -24,17 +25,29 @@ user_data = {}
 # Обработчик команды /start
 @bot.message_handler(commands=['start'])
 def start_command(message):
-    username = message.from_user.first_name if message.from_user.first_name else "Гость"
-    user_data[message.chat.id] = {"username": username}
-    bot.send_message(message.chat.id,
-                     f"Привет, {username}! Давайте зарегистрируемся. Пожалуйста, отправьте свой номер телефона.",
-                     reply_markup=request_contact())
+    markup = types.InlineKeyboardMarkup()  # Inline кнопки
+    btn_ru = types.InlineKeyboardButton("🇷🇺 Русский", callback_data='ru')
+    btn_uz = types.InlineKeyboardButton("🇺🇿 O'zbek", callback_data='uz')
+    markup.add(btn_ru, btn_uz)
+    bot.send_message(message.chat.id, "Выберите язык / Tilni tanlang:", reply_markup=markup)
+
+
+# Обработчик нажатия на Inline кнопки
+@bot.callback_query_handler(func=lambda call: call.data in ['ru', 'uz'])
+def set_language(call):
+    chat_id = call.message.chat.id
+    user_data[chat_id] = {"language": "🇷🇺 Русский" if call.data == 'ru' else "🇺🇿 O'zbek"}
+
+    if call.data == 'ru':
+        bot.send_message(chat_id, "Отлично! Теперь отправьте свой номер телефона.", reply_markup=request_contact())
+    elif call.data == 'uz':
+        bot.send_message(chat_id, "Ajoyib! Endi telefon raqamingizni yuboring.", reply_markup=request_contact())
 
 
 # Запрос номера телефона
 def request_contact():
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    button = types.KeyboardButton("Отправить номер", request_contact=True)
+    button = types.KeyboardButton("📱 Отправить номер", request_contact=True)
     markup.add(button)
     return markup
 
@@ -49,7 +62,7 @@ def handle_contact(message):
 # Запрос локации
 def request_location():
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    button = types.KeyboardButton("Отправить локацию", request_location=True)
+    button = types.KeyboardButton("📍 Отправить локацию", request_location=True)
     markup.add(button)
     return markup
 
@@ -66,11 +79,12 @@ def handle_location(message):
 def handle_birthday(message):
     user_id = message.chat.id
     user_data[user_id]['birthday'] = message.text
+    user_data[user_id]['username'] = message.from_user.first_name
 
     # Сохранение данных в базу данных
-    cursor.execute("INSERT INTO users (id, username, phone, location, birthday) VALUES (?, ?, ?, ?, ?)",
+    cursor.execute("INSERT INTO users (id, username, phone, location, birthday, language) VALUES (?, ?, ?, ?, ?, ?)",
                    (user_id, user_data[user_id]['username'], user_data[user_id]['phone'],
-                    user_data[user_id]['location'], user_data[user_id]['birthday']))
+                    user_data[user_id]['location'], user_data[user_id]['birthday'], user_data[user_id]['language']))
     conn.commit()
 
     bot.send_message(user_id, "Регистрация завершена! Ваши данные сохранены в системе.")
